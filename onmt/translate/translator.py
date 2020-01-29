@@ -344,6 +344,11 @@ class Translator(object):
 
         all_scores = []
         all_predictions = []
+        my_data = dict() #####
+        my_data['srcs'] = [] #####
+        my_data['tgts'] = [] #####
+        my_data['inds'] = [] #####
+        my_data['attns'] = [] #####
 
         start_time = time.time()
 
@@ -354,6 +359,17 @@ class Translator(object):
             translations = xlation_builder.from_batch(batch_data)
 
             for trans in translations:
+                attn = trans.attns[0] #####
+                my_data['srcs'].append(list(trans.src_raw)) #####
+                my_data['tgts'].append(trans.pred_sents[0]) #####
+                inds = torch.Tensor.tolist(attn.max(1)[1])[0: -1] #####
+                my_data['inds'].append(inds) #####
+                attn_lst = attn.tolist() #####
+                for i, row in enumerate(attn_lst): #####
+                    for j, item in enumerate(row): #####
+                        attn_lst[i][j] = round(attn_lst[i][j], 4) #####
+                my_data['attns'].append(str(attn_lst).replace(' ', '')) #####
+                
                 all_scores += [trans.pred_scores[:self.n_best]]
                 pred_score_total += trans.pred_scores[0]
                 pred_words_total += len(trans.pred_sents[0])
@@ -436,7 +452,7 @@ class Translator(object):
             import json
             json.dump(self.translator.beam_accum,
                       codecs.open(self.dump_beam, 'w', 'utf-8'))
-        return all_scores, all_predictions
+        return all_scores, all_predictions, my_data #####
 
     def _align_pad_prediction(self, predictions, bos, pad):
         """

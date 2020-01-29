@@ -233,60 +233,6 @@ class ServerModel(object):
 
         set_random_seed(self.opt.seed, self.opt.cuda)
 
-        if self.preprocess_opt is not None:
-            self.logger.info("Loading preprocessor")
-            self.preprocessor = []
-
-            for function_path in self.preprocess_opt:
-                function = get_function_by_path(function_path)
-                self.preprocessor.append(function)
-
-        if self.tokenizer_opt is not None:
-            self.logger.info("Loading tokenizer")
-
-            if "type" not in self.tokenizer_opt:
-                raise ValueError(
-                    "Missing mandatory tokenizer option 'type'")
-
-            if self.tokenizer_opt['type'] == 'sentencepiece':
-                if "model" not in self.tokenizer_opt:
-                    raise ValueError(
-                        "Missing mandatory tokenizer option 'model'")
-                import sentencepiece as spm
-                sp = spm.SentencePieceProcessor()
-                model_path = os.path.join(self.model_root,
-                                          self.tokenizer_opt['model'])
-                sp.Load(model_path)
-                self.tokenizer = sp
-            elif self.tokenizer_opt['type'] == 'pyonmttok':
-                if "params" not in self.tokenizer_opt:
-                    raise ValueError(
-                        "Missing mandatory tokenizer option 'params'")
-                import pyonmttok
-                if self.tokenizer_opt["mode"] is not None:
-                    mode = self.tokenizer_opt["mode"]
-                else:
-                    mode = None
-                # load can be called multiple times: modify copy
-                tokenizer_params = dict(self.tokenizer_opt["params"])
-                for key, value in self.tokenizer_opt["params"].items():
-                    if key.endswith("path"):
-                        tokenizer_params[key] = os.path.join(
-                            self.model_root, value)
-                tokenizer = pyonmttok.Tokenizer(mode,
-                                                **tokenizer_params)
-                self.tokenizer = tokenizer
-            else:
-                raise ValueError("Invalid value for tokenizer type")
-
-        if self.postprocess_opt is not None:
-            self.logger.info("Loading postprocessor")
-            self.postprocessor = []
-
-            for function_path in self.postprocess_opt:
-                function = get_function_by_path(function_path)
-                self.postprocessor.append(function)
-
         if load:
             self.load()
 
@@ -348,6 +294,60 @@ class ServerModel(object):
             raise ServerModelError("Runtime Error: %s" % str(e))
 
         timer.tick("model_loading")
+        if self.preprocess_opt is not None:
+            self.logger.info("Loading preprocessor")
+            self.preprocessor = []
+
+            for function_path in self.preprocess_opt:
+                function = get_function_by_path(function_path)
+                self.preprocessor.append(function)
+
+        if self.tokenizer_opt is not None:
+            self.logger.info("Loading tokenizer")
+
+            if "type" not in self.tokenizer_opt:
+                raise ValueError(
+                    "Missing mandatory tokenizer option 'type'")
+
+            if self.tokenizer_opt['type'] == 'sentencepiece':
+                if "model" not in self.tokenizer_opt:
+                    raise ValueError(
+                        "Missing mandatory tokenizer option 'model'")
+                import sentencepiece as spm
+                sp = spm.SentencePieceProcessor()
+                model_path = os.path.join(self.model_root,
+                                          self.tokenizer_opt['model'])
+                sp.Load(model_path)
+                self.tokenizer = sp
+            elif self.tokenizer_opt['type'] == 'pyonmttok':
+                if "params" not in self.tokenizer_opt:
+                    raise ValueError(
+                        "Missing mandatory tokenizer option 'params'")
+                import pyonmttok
+                if self.tokenizer_opt["mode"] is not None:
+                    mode = self.tokenizer_opt["mode"]
+                else:
+                    mode = None
+                # load can be called multiple times: modify copy
+                tokenizer_params = dict(self.tokenizer_opt["params"])
+                for key, value in self.tokenizer_opt["params"].items():
+                    if key.endswith("path"):
+                        tokenizer_params[key] = os.path.join(
+                            self.model_root, value)
+                tokenizer = pyonmttok.Tokenizer(mode,
+                                                **tokenizer_params)
+                self.tokenizer = tokenizer
+            else:
+                raise ValueError("Invalid value for tokenizer type")
+
+        if self.postprocess_opt is not None:
+            self.logger.info("Loading postprocessor")
+            self.postprocessor = []
+
+            for function_path in self.postprocess_opt:
+                function = get_function_by_path(function_path)
+                self.postprocessor.append(function)
+
         self.load_time = timer.tick()
         self.reset_unload_timer()
         self.loading_lock.set()
@@ -419,7 +419,7 @@ class ServerModel(object):
         predictions = []
         if len(texts_to_translate) > 0:
             try:
-                scores, predictions = self.translator.translate(
+                scores, predictions, my_data = self.translator.translate( #####
                     texts_to_translate,
                     batch_size=len(texts_to_translate)
                     if self.opt.batch_size == 0
@@ -468,7 +468,7 @@ class ServerModel(object):
                    for items in zip(head_spaces, results, tail_spaces)]
 
         self.logger.info("Translation Results: %d", len(results))
-        return results, scores, self.opt.n_best, timer.times, aligns
+        return results, scores, self.opt.n_best, timer.times, aligns, my_data #####
 
     def do_timeout(self):
         """Timeout function that frees GPU memory.
@@ -491,7 +491,6 @@ class ServerModel(object):
         del self.translator
         if self.opt.cuda:
             torch.cuda.empty_cache()
-        self.stop_unload_timer()
         self.unload_timer = None
 
     def stop_unload_timer(self):
